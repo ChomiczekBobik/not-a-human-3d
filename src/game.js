@@ -102,6 +102,7 @@ export class Game {
   startDay() {
     const d = DAYS[this.day - 1];
     this.phase = 'day';
+    this.sfx.nightAmbienceStop();
     this.sfx.roomTone(true);
     // меловой крест на доме — с четвёртого дня
     const st = this.app.scenes.street;
@@ -489,6 +490,7 @@ export class Game {
     this.hud('01:00');
     this.ui.bigtext(`НОЧЬ ${this.day}`, 3000);
     this.msg('Хомка сидит у двери. Ружьё — на коленях. Печь гудит.', 5000);
+    this.sfx.nightAmbience(this.day);
     this.nightQueue = d.night.map((id) => GUESTS[id]);
     this.after(5, () => this.nextKnock());
   }
@@ -635,6 +637,7 @@ export class Game {
   // ---------- сон и ночные события ----------
   sleep() {
     this.phase = 'sleep';
+    this.sfx.nightAmbienceStop();
     this.clearDoorVisitor();
     this.ui.prompt(null);
     const notes = [];

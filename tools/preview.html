@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<title>Просмотр моделей / риг — ДА, Я ЧЕЛОВЕК</title>
+<style>
+  body { margin:0; background:#0b0e14; color:#cfc8b6; font-family:monospace; }
+  #panel { position:fixed; top:12px; left:12px; z-index:5; background:rgba(8,10,16,.85);
+    padding:12px 14px; border:1px solid #333; border-radius:4px; font-size:13px; }
+  select, button { font:inherit; background:#1b1f28; color:#cfc8b6; border:1px solid #444; padding:4px 8px; margin-top:6px; cursor:pointer; }
+  label { display:block; margin-top:8px; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="panel">
+  <b>РИГ / МОДЕЛИ</b>
+  <label>Вариант <select id="variant"></select></label>
+  <label>Поза <select id="anim">
+    <option value="idle">idle</option>
+    <option value="walk">walk</option>
+    <option value="knock">knock</option>
+    <option value="lean">lean</option>
+    <option value="creepy">creepy</option>
+    <option value="talk">talk</option>
+    <option value="freeze">freeze</option>
+  </select></label>
+  <label><button id="showBones">Показать суставы</button></label>
+  <p style="color:#6f7b8c;max-width:220px;line-height:1.5">Мышь — вращать. Колесо — зум.<br>Добавляй варианты в массив VARIANTS внизу.</p>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { createHumanoid, disposeHumanoid } from '../src/rig.js';
+import { pose, resetPose } from '../src/anim.js';
+
+const VARIANTS = {
+  'обычный человек': {},
+  'Гена (сантехник)': { height: 1.74, girth: 1.18, cloth: 0x3a4a5a, hat: true, hatColor: 0x2a3a4a },
+  'Баба Зина (нелюдь)': { height: 1.52, girth: 0.85, headScale: 1.15, fingers: 6, mouth: 'wide', bald: true, shadow: false },
+  'Курьер': { height: 1.81, girth: 0.95, cloth: 0x2f5a3a, hat: true, hatColor: 0x2f5a3a },
+  'Инспектор (нелюдь)': { height: 1.92, eyeCount: 3, eyeColor: 0xd8b040, eyeGlow: 1.4, extraArms: 2, mouth: 'stitched', bald: true, shadow: false },
+  'Копия игрока': { height: 1.78, shadow: false, eyeGlow: 0.3 },
+  'тест: 6 глаз + пальто': { eyeCount: 6, eyeColor: 0xff4422, eyeGlow: 2, coat: true, mouth: 'wide', extraArms: 4 }
+};
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0e14);
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 60);
+camera.position.set(1.6, 1.6, 2.4);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.95, 0);
+
+scene.add(new THREE.HemisphereLight(0x8899bb, 0x222018, 0.6));
+const key = new THREE.DirectionalLight(0xffe6c0, 2.0);
+key.position.set(3, 5, 2);
+key.castShadow = true;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x6688ff, 0.8);
+rim.position.set(-2, 2, -3);
+scene.add(rim);
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshStandardMaterial({ color: 0x1a1e26 }));
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+const grid = new THREE.GridHelper(6, 12, 0x2a3342, 0x222833);
+scene.add(grid);
+
+let rig = null;
+let bonesVisible = false;
+const boneHelpers = new THREE.Group();
+scene.add(boneHelpers);
+
+function spawn(name) {
+  if (rig) disposeHumanoid(rig);
+  rig = createHumanoid(VARIANTS[name]);
+  scene.add(rig.root);
+  boneHelpers.clear();
+  for (const n in rig.joints) {
+    const j = rig.joints[n];
+    if (!j.isObject3D) continue;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0x00ff88 }));
+    m.visible = bonesVisible;
+    j.add(m);
+  }
+}
+
+const sel = document.getElementById('variant');
+for (const k of Object.keys(VARIANTS)) {
+  const o = document.createElement('option'); o.value = k; o.textContent = k; sel.appendChild(o);
+}
+sel.onchange = () => spawn(sel.value);
+document.getElementById('showBones').onclick = () => {
+  bonesVisible = !bonesVisible;
+  spawn(sel.value);
+};
+spawn(sel.value);
+
+const clock = new THREE.Clock();
+function loop() {
+  requestAnimationFrame(loop);
+  const t = clock.getElapsedTime();
+  if (rig) {
+    resetPose(rig);
+    const a = document.getElementById('anim').value;
+    if (pose[a]) pose[a](rig, t, { phase: t });
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+loop();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>

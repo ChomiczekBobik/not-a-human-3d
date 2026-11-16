@@ -136,9 +136,11 @@ def main():
         raise PublishError('Пустой проект: ' + root)
     total = sum(os.path.getsize(p) for _, p in files)
     print(f'Состав: {len(files)} файлов, {total / 1048576:.2f} MiB; root={root}', flush=True)
-    too_big = [(p, os.path.getsize(p)) for p, _ in files if os.path.getsize(p) > MAX_CONTENT_BYTES]
-    if too_big:
-        raise PublishError('Файлы больше Contents API (используй git/LFS или исключение):\n' + '\n'.join(f'{p}: {s}' for p, s in too_big))
+    small = [(rel, p) for rel, p in files if os.path.getsize(p) <= MAX_CONTENT_BYTES]
+    big = [(rel, p) for rel, p in files if os.path.getsize(p) > MAX_CONTENT_BYTES]
+    for rel, absolute in big:
+        if os.path.getsize(absolute) > 10_000_000:
+            raise PublishError(f'Файл {rel} ({os.path.getsize(absolute):,} байт) больше лимита Git Blob API (10 МБ) — добавь в исключения или сожми.')
     if args.dry_run:
         for rel, _ in files:
             print(rel)
@@ -173,10 +175,10 @@ def main():
         print('Репозиторий существует:', repo['html_url'], flush=True)
 
     branch = repo.get('default_branch', 'main')
-    print(f'Ветка: {branch}; загрузка {len(files)} файлов через Contents API...', flush=True)
+    print(f'Ветка: {branch}; {len(small)} файлов через Contents API, {len(big)} больших через Git Data API...', flush=True)
 
     # Sequential: каждый PUT создаёт commit, параллельные коммиты дали бы non-fast-forward.
-    for i, (rel, absolute) in enumerate(files, 1):
+    for i, (rel, absolute) in enumerate(small, 1):
         encoded_path = urllib.parse.quote(rel, safe='/')
         path = f'/repos/{owner}/{args.repo}/contents/{encoded_path}'
         status, current, _ = api('GET', path, token, expected=(200, 404))
@@ -193,6 +195,30 @@ def main():
             body['sha'] = current['sha']
         api('PUT', path, token, body=body, expected=(200, 201))
         print(f'[{i}/{len(files)}] {rel}', flush=True)
+
+    # Большие файлы (>950 КБ): Contents API не принимает, поэтому идём через
+    # Git Data API: blobs (до ~10 МБ) -> новое дерево поверх HEAD -> commit -> ref.
+    if big:
+        print(f'Большие файлы ({len(big)}) через Git Data API...', flush=True)
+        _, ref, _ = api('GET', f'/repos/{owner}/{args.repo}/git/ref/heads/{branch}', token)
+        head_sha = ref['object']['sha']
+        _, commit, _ = api('GET', f'/repos/{owner}/{args.repo}/git/commits/{head_sha}', token)
+        tree_items = []
+        for rel, absolute in big:
+            with open(absolute, 'rb') as f:
+                blob_b64 = base64.b64encode(f.read()).decode('ascii')
+            _, blob, _ = api('POST', f'/repos/{owner}/{args.repo}/git/blobs', token,
+                             body={'content': blob_b64, 'encoding': 'base64'}, expected=(201,))
+            tree_items.append({'path': rel, 'mode': '100644', 'type': 'blob', 'sha': blob['sha']})
+            print(f'  blob: {rel} ({os.path.getsize(absolute):,} байт)', flush=True)
+        _, tree, _ = api('POST', f'/repos/{owner}/{args.repo}/git/trees', token,
+                         body={'base_tree': commit['tree']['sha'], 'tree': tree_items}, expected=(201,))
+        _, new_commit, _ = api('POST', f'/repos/{owner}/{args.repo}/git/commits', token,
+                               body={'message': f'{args.message}: {len(big)} больших файла (Git Data API)',
+                                     'tree': tree['sha'], 'parents': [head_sha]}, expected=(201,))
+        api('PATCH', f'/repos/{owner}/{args.repo}/git/refs/heads/{branch}', token,
+            body={'sha': new_commit['sha'], 'force': False})
+        print('Коммит больших файлов: ' + new_commit['sha'][:10], flush=True)
 
     pages_url = f'https://{owner}.github.io/{args.repo}/'
     if args.enable_pages:

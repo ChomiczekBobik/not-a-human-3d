@@ -1,0 +1,24 @@
+# служебные файлы Python
+__pycache__/
+*.py[cod]
+
+# логи и временные результаты тестов
+*.log
+shots/
+tmp/
+
+# сборка релиза
+dist/
+*.zip
+
+# секреты
+.env
+.env.*
+
+# тяжёлый исходник модели: он не используется рантаймом и не нужен в бете
+assets/models/tripo_heavy.glb
+assets/models/src/*.glb
+
+# системное
+.DS_Store
+Thumbs.db

@@ -6,6 +6,10 @@ export class Sfx {
     this.ctx = null;
     this.heartbeatTimer = null;
     this.samples = new Map(); // реальные записи (CC0): шаги, двери, ветер, ткань
+    this._nightBuf = null;    // декодированный буфер ночного эмбиента (текущий)
+    this._nightIdx = 0;       // какая часть (1..4)
+    this._nightWanted = 0;    // 0 = ничего не играет, иначе 1..4
+    this._nightSrc = null;    // {src,g} текущего источника
   }
 
   init() {
@@ -109,6 +113,57 @@ export class Sfx {
     if (this._roomTone) return;
     const s = this._sample('ambient_2', { vol: 0.07, loop: true, rate: 1 });
     if (s) { s.g.gain.value = 0.07; this._roomTone = s; }
+  }
+
+  // ---------- ночной эмбиент (assets/sfx/night_1..4.ogg, бесшовные петли) ----------
+  // night_1 = 0:00-5:00 трека, night_2 = 5-10, night_3 = 10-15, night_4 = 15-20:49.
+  // Петля запечена кроссфейдом, поэтому BufferSource(loop=true) играет без щелчков.
+  // Ночи 5-7 идут по кругу с первой части. Буфер грузится лениво, держится один.
+  nightAmbience(day) {
+    if (!this.ctx) return;
+    const idx = ((Math.max(1, day | 0) - 1) % 4) + 1;
+    this.nightAmbienceStop();
+    this._nightWanted = idx;
+    const play = (buf) => {
+      if (this._nightWanted !== idx || !this.ctx) return;
+      const c = this.ctx;
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      src.loop = true; // запечённая петля — стык не слышен
+      const g = c.createGain();
+      const t = c.currentTime;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.32, t + 4);
+      src.connect(g); g.connect(this.master);
+      src.start();
+      this._nightSrc = { src, g };
+    };
+    if (this._nightBuf && this._nightIdx === idx) { play(this._nightBuf); return; }
+    fetch('assets/sfx/night_' + idx + '.ogg')
+      .then((r) => { if (!r.ok) throw new Error('http ' + r.status); return r.arrayBuffer(); })
+      .then((ab) => this.ctx.decodeAudioData(ab))
+      .then((buf) => {
+        if (this._nightBuf === null || this._nightIdx !== idx) {
+          this._nightPrev = null; // старый большой буфер отпускаем на GC
+        }
+        this._nightBuf = buf;
+        this._nightIdx = idx;
+        play(buf);
+      })
+      .catch(() => {});
+  }
+
+  nightAmbienceStop() {
+    this._nightWanted = 0;
+    const s = this._nightSrc;
+    if (!s) return;
+    this._nightSrc = null;
+    try {
+      const t = this.ctx.currentTime;
+      s.g.gain.cancelScheduledValues(t);
+      s.g.gain.setTargetAtTime(0.0001, t, 0.5);
+      s.src.stop(t + 2.8);
+    } catch (e) {}
   }
 
 

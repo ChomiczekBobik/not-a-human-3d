@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>НЕТ, Я НЕ ВЕЛИЧАНИН — 3D (пародия)</title>
+<link rel="stylesheet" href="css/style.css?v=3" />
+<script>
+// диагностика для локальных автотестов; на GitHub Pages /report не существует,
+// поэтому отправка включается только с localhost/127.0.0.1.
+const LOCAL_REPORT = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+window.addEventListener('error', function (e) {
+  if (!LOCAL_REPORT) return;
+  try {
+    fetch('/report', { method: 'POST', body: JSON.stringify({ error: e.message, src: e.filename, line: e.lineno }) });
+  } catch (_) {}
+});
+window.addEventListener('unhandledrejection', function (e) {
+  if (!LOCAL_REPORT) return;
+  try {
+    fetch('/report', { method: 'POST', body: JSON.stringify({ rejection: String(e.reason) }) });
+  } catch (_) {}
+});
+</script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app">
+  <canvas id="scene"></canvas>
+  <div id="vignette"></div>
+  <div id="flash"></div>
+  <div id="fade"></div>
+  <div id="crosshair" class="hidden">·</div>
+  <div id="peephole-mask" class="hidden"><div id="peephole-glass"></div></div>
+
+  <div id="hud" class="hidden">
+    <div id="night-label">ДЕНЬ 1</div>
+    <div id="clock-label">09:00</div>
+  </div>
+  <div id="meter" class="hidden">
+    <b id="hearts" class="mi" title="Человечность">♥♥♥</b>
+    <span class="mi" title="Запасы">▣<b id="supplies">4</b></span>
+    <span class="mi" title="Злотые">$<b id="money">30</b></span>
+    <span class="mi" title="Лекарства">✚<b id="meds">0</b></span>
+    <span class="mi" title="Чай">☕<b id="tea">0</b></span>
+  </div>
+  <div id="warmth" class="hidden" title="Тепло">
+    <span>❄</span>
+    <div id="warmth-bar"><div id="warmth-fill"></div></div>
+  </div>
+
+  <button id="tasks-btn" class="hidden">TAB<span>дела</span></button>
+  <div id="tasks-panel" class="hidden">
+    <div id="tasks-title">ДЕЛА</div>
+    <div id="tasks-list"></div>
+  </div>
+
+  <div id="prompt" class="hidden"></div>
+  <div id="subtitle" class="hidden"></div>
+
+  <div id="dialogue" class="hidden">
+    <div id="npc-name"></div>
+    <div id="npc-line"></div>
+    <div id="choices"></div>
+  </div>
+
+  <div id="bigtext" class="hidden"></div>
+
+  <div id="title" class="screen">
+    <h1>НЕТ, Я НЕ<br/>ВЕЛИЧАНИН</h1>
+    <p class="sub">Хомка. Величка. Две недели после.</p>
+    <button id="start-btn">ВЫЙТИ НА СМЕНУ</button>
+    <p class="hint">
+      WASD — ходить · мышь — смотреть · E — действие · E/Esc у двери — выйти из глазка · выбор диалога — мышью<br/>
+      Днём — в «Бедронку» за запасами. Масло по скидке. Кассирша Людмила.<br/>
+      Ночью стучатся. Впускай — а разбирайся потом, днём, с ружьём под рукой.<br/>
+      Величанина оставь. Краковянина — того. Радиоактивного — в подвал, полечится.
+    </p>
+  </div>
+
+  <div id="gameover" class="screen hidden">
+    <h1 id="go-title">КОНЕЦ</h1>
+    <p id="go-text"></p>
+    <button id="go-btn">ЕЩЁ РАЗ</button>
+  </div>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

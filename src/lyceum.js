@@ -3,20 +3,22 @@
 // отдельный: интерьер дня 2 (пустой и мрачный) будет собираться в этом же файле.
 // Расположение: правая сторона улицы, двор z −14.5..−30.5, фасад смотрит на улицу (−x).
 import * as THREE from 'three';
-import { mat, matTex, box, plane, tex } from './mats.js';
+import { mat, matTex, box, plane, tex, pbrMat } from './mats.js';
+import { decal, dampPaperMaterial, organicFloorMaterial } from './details.js';
 import { batchStaticMeshes } from './static_batch.js';
+import { createDoubleDoor } from './doors.js';
 
 export function buildLyceumStreet(scene) {
   const Z = -22.5; // ось двора и вестибюля
 
   // ---------- материалы ----------
-  const wallMat = matTex('assets/tex/wall_plaster_home.jpg', 3, 2.4, 0x9d9a92, 0.95); // светлее руин: госздание
+  const wallMat = pbrMat('Concrete034', 3, 2.4, { color: 0x929089, normalScale: 0.4, roughness: 0.97 });
   const trimMat = mat(0xd8d4ca, 0.85);     // карниз
-  const plinthMat = mat(0x42454c, 0.9);    // цоколь
-  const doorMat = mat(0x22262e, 0.8);
-  const fenceMat = mat(0x30363e, 0.55, { metalness: 0.5 });
-  const stepsMat = mat(0x8b8b87, 0.92);
-  const woodMat = matTex('assets/tex/wood_dark.jpg', 1, 0.5, 0x5f5140, 0.9);
+  const plinthMat = pbrMat('Concrete034', 1, 1, { color: 0x45484e, normalScale: 0.55, roughness: 0.98 });
+  const doorMat = pbrMat('Wood051', 1, 2, { color: 0x34302d, normalScale: 0.54, roughness: 0.94 });
+  const fenceMat = pbrMat('Metal032', 1, 2, { color: 0x3b4147, normalScale: 0.5, roughness: 0.78 });
+  const stepsMat = pbrMat('Concrete034', 1, 1, { color: 0x82827e, normalScale: 0.44, roughness: 0.96 });
+  const woodMat = pbrMat('Wood051', 1, 0.5, { color: 0x625444, normalScale: 0.55, roughness: 0.95 });
   const winDead = matTex('assets/tex/win_dead.png', 1, 1, 0xb8bec8, 0.4);
   const winLit = new THREE.MeshStandardMaterial({
     map: tex('assets/tex/win_lit.png'), emissive: 0xffc878,
@@ -65,7 +67,12 @@ export function buildLyceumStreet(scene) {
   scene.add(wv);
 
   // ---------- вход ----------
-  box(scene, 0.1, 2.2, 1.5, doorMat, 3.16, 1.1, Z, { cast: false });
+  const entranceDoor = createDoubleDoor(scene, {
+    x: 3.16, z: Z, rotationY: Math.PI / 2, width: 1.5, height: 2.2,
+    material: doorMat
+  });
+  decal(scene, 'assets/tex/generated/mold.png', 0.88, 1.52,
+    3.178, 0.82, Z + 1.58, -Math.PI / 2, 0, 0.74, 0x68715f);
   box(scene, 0.9, 0.09, 3.4, plinthMat, 3.15, 3.35, Z);           // козырёк
   for (const [sx, sy, sw] of [[3.35, 0.06, 2.0], [3.2, 0.16, 1.8], [3.05, 0.26, 1.6]]) {
     box(scene, 0.4, 0.12, sw, stepsMat, sx - 0.1, sy, Z);          // ступени к улице
@@ -75,7 +82,9 @@ export function buildLyceumStreet(scene) {
   porch.position.set(3.05, 3.55, Z);
   scene.add(porch);
   // вывеска
-  plane(scene, 3.4, 0.85, signMat, 3.13, 5.3, Z, -Math.PI / 2);
+  // Нижний край вывески выше окна (его верх y=5.1): раньше плоскости
+  // перекрывались на одном x=3.13 и давали цветную рябь в перекрытии.
+  plane(scene, 3.4, 0.85, signMat, 3.13, 5.65, Z, -Math.PI / 2);
   // пятна света на снегу (добавка, не источники света)
   plane(scene, 3.2, 3.2, glowMat, 3.0, 0.02, Z, 0, -Math.PI / 2);
   plane(scene, 1.7, 1.7, glowMat, 3.95, 0.018, -15.6, 0, -Math.PI / 2);
@@ -116,7 +125,7 @@ export function buildLyceumStreet(scene) {
   bin.position.set(3.6, 0.35, -26.6);
   scene.add(bin);
 
-  return { signMat, porchMat, gateZ: Z };
+  return { signMat, porchMat, gateZ: Z, entranceDoor };
 }
 
 // Текстовые таблички рисуются в canvas: не нужны внешние картинки и шрифты.
@@ -159,12 +168,12 @@ export function buildLyceumInterior() {
 
   const bounds = { minX: -4.85, maxX: 4.85, minZ: -9.9, maxZ: 4.3 };
   const colliders = [];
-  const wallMat = matTex('assets/tex/wall_plaster_cold.jpg', 4, 1.6, 0x777c78, 0.96, { bump: 0.006 });
-  const floorMat = matTex('assets/tex/concrete.jpg', 4, 7, 0x626967, 0.95, { bump: 0.008 });
+  const wallMat = pbrMat('Concrete034', 4, 1.6, { color: 0x70756f, normalScale: 0.46, roughness: 0.98 });
+  const floorMat = pbrMat('Concrete034', 4, 7, { color: 0x5c635e, normalScale: 0.38, roughness: 0.95 });
   const ceilMat = mat(0x3d4243, 0.96);
-  const doorMat = mat(0x252c32, 0.76, { metalness: 0.18 });
-  const woodMat = matTex('assets/tex/wood_dark.jpg', 1, 1, 0x635441, 0.9, { bump: 0.01 });
-  const metalMat = mat(0x4c555b, 0.65, { metalness: 0.45 });
+  const doorMat = pbrMat('Wood051', 1, 2, { color: 0x303230, normalScale: 0.58, roughness: 0.94 });
+  const woodMat = pbrMat('Wood051', 1, 1, { color: 0x625544, normalScale: 0.52, roughness: 0.94 });
+  const metalMat = pbrMat('Metal032', 1, 1, { color: 0x596268, normalScale: 0.42, roughness: 0.72 });
   const darkMat = mat(0x14191c, 0.88);
 
   // Коридор x=-2.1..2.1, z=-3..4. Класс x=-4.6..4.6, z=-9.6..-3.
@@ -196,16 +205,19 @@ export function buildLyceumInterior() {
     { minX: -4.85, maxX: 4.85, minZ: -9.92, maxZ: -9.62 }
   );
 
-  // Вход: дверь закрыта на пружину, выход только через E.
+  // Вход: створки на пружине открываются у игрока; старый сплошной коллайдер
+  // удалён, иначе он останавливал камеру в 0.7 м перед реальным проёмом.
   box(scene, 1.35, 3.1, 0.2, wallMat, -1.65, 1.55, 4.2);
   box(scene, 1.35, 3.1, 0.2, wallMat, 1.65, 1.55, 4.2);
   box(scene, 2.0, 0.7, 0.2, wallMat, 0, 2.73, 4.2);
-  box(scene, 0.92, 2.3, 0.12, doorMat, -0.49, 1.15, 4.12);
-  box(scene, 0.92, 2.3, 0.12, doorMat, 0.49, 1.15, 4.12);
-  box(scene, 0.05, 0.05, 0.08, metalMat, -0.08, 1.12, 4.03, { cast: false });
-  box(scene, 0.05, 0.05, 0.08, metalMat, 0.08, 1.12, 4.03, { cast: false });
+  const entranceDoor = createDoubleDoor(scene, {
+    x: 0, z: 4.12, width: 1.84, height: 2.3, material: doorMat
+  });
+  for (const pivot of entranceDoor.pivots) {
+    decal(pivot, 'assets/tex/generated/scratches.png', 0.56, 1.35,
+      pivot.position.x < 0 ? 0.46 : -0.46, 1.08, -0.041, Math.PI, 0, 0.66, 0xa9a18e);
+  }
   plane(scene, 0.65, 0.26, new THREE.MeshStandardMaterial({ map: tex('assets/tex/sign_exit.png'), emissive: 0x90ffb0, emissiveIntensity: 0.65 }), 0, 2.57, 4.02, Math.PI);
-  colliders.push({ minX: -2.35, maxX: 2.35, minZ: 4.0, maxZ: 4.3 });
 
   // Шкафчики в коридоре: один открыт, внутри пусто.
   for (let i = 0; i < 4; i++) {
@@ -215,6 +227,14 @@ export function buildLyceumInterior() {
     box(scene, 0.03, 0.08, 0.04, metalMat, -1.72, 1.05, z + 0.22, { cast: false });
   }
   colliders.push({ minX: -2.26, maxX: -1.7, minZ: -1.75, maxZ: 1.35 });
+  decal(scene, 'assets/tex/generated/mold.png', 0.72, 1.24,
+    -2.132, 0.72, 3.52, Math.PI / 2, 0, 0.76, 0x65705d);
+  decal(scene, 'assets/tex/generated/rust_drips.png', 0.62, 1.35,
+    2.132, 0.82, 2.72, -Math.PI / 2, 0, 0.62, 0x866b58);
+  decal(scene, 'assets/tex/generated/mold.png', 1.12, 1.68,
+    -4.632, 0.88, -6.48, Math.PI / 2, 0, 0.78, 0x5d6957);
+  plane(scene, 1.42, 0.72, organicFloorMaterial(1.6, 1, 0x41483e),
+    0, 0.014, 3.12, 0, -Math.PI / 2);
 
   // Радиатор: трубы холодные, один клапан сорван.
   box(scene, 0.18, 0.08, 2.1, metalMat, 2.08, 0.45, 0.1, { cast: false });
@@ -265,13 +285,15 @@ export function buildLyceumInterior() {
   }
 
   // Стол учителя. Стул отодвинут, никто не пришёл.
-  box(scene, 2.0, 0.08, 0.72, woodMat, 0, 0.78, -8.65);
-  for (const [x, z] of [[-0.85, -8.92], [0.85, -8.92], [-0.85, -8.38], [0.85, -8.38]]) {
+  // Между последним рядом и столом оставлено 0.84 м: с учётом радиуса игрока
+  // остаётся проход 0.20 м для центра камеры, ведущий к боковым рядам и окнам.
+  box(scene, 2.0, 0.08, 0.72, woodMat, 0, 0.78, -8.87);
+  for (const [x, z] of [[-0.85, -9.14], [0.85, -9.14], [-0.85, -8.60], [0.85, -8.60]]) {
     box(scene, 0.06, 0.76, 0.06, metalMat, x, 0.38, z, { cast: false });
   }
-  box(scene, 0.46, 0.06, 0.42, woodMat, 1.25, 0.46, -8.95);
-  box(scene, 0.46, 0.55, 0.06, woodMat, 1.25, 0.74, -9.12);
-  colliders.push({ minX: -1.05, maxX: 1.05, minZ: -9.08, maxZ: -8.22 });
+  box(scene, 0.46, 0.06, 0.42, woodMat, 1.25, 0.46, -9.17);
+  box(scene, 0.46, 0.55, 0.06, woodMat, 1.25, 0.74, -9.34);
+  colliders.push({ minX: -1.05, maxX: 1.05, minZ: -9.30, maxZ: -8.44 });
 
   // Парты и стулья. Между рядами можно пройти; один стол перевёрнут.
   const deskXs = [-3.25, -1.08, 1.08, 3.25];
@@ -309,7 +331,7 @@ export function buildLyceumInterior() {
   // Один рюкзак и разбросанные тетради — признаки того, что класс бросили в спешке.
   box(scene, 0.36, 0.45, 0.2, mat(0x333d4b, 0.92), -3.0, 0.24, -5.12);
   box(scene, 0.28, 0.05, 0.04, metalMat, -3.0, 0.49, -5.13, { cast: false });
-  const paperMat = mat(0xbab7a8, 0.98);
+  const paperMat = dampPaperMaterial(1, 1, 0xb9b09a);
   for (const [x, z, ry] of [[-2.55, -4.95, 0.4], [0.3, -5.3, -0.8], [2.4, -6.1, 0.9], [-0.4, -7.8, 0.1]]) {
     plane(scene, 0.32, 0.23, paperMat, x, 0.012, z, ry, -Math.PI / 2);
   }
@@ -349,6 +371,8 @@ export function buildLyceumInterior() {
 
   return {
     scene, bounds, colliders,
+    targets: { exit: entranceDoor.target },
+    surfaceDoors: [{ id: 'lyceum-exit', x: 0, z: 4.12, radius: 1.9, ...entranceDoor, get openAmount() { return entranceDoor.openAmount; } }],
     anchors: {
       exit: { x: 0, z: 3.55, r: 1.25 },
       schedule: { x: -1.55, z: 2.35, r: 1.2 },

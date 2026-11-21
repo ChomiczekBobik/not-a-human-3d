@@ -4,6 +4,7 @@
 export class Sfx {
   constructor() {
     this.ctx = null;
+    this.volume = 0.6;
     this.heartbeatTimer = null;
     this.samples = new Map(); // реальные записи (CC0): шаги, двери, ветер, ткань
     this._nightBuf = null;    // декодированный буфер ночного эмбиента (текущий)
@@ -20,11 +21,21 @@ export class Sfx {
     // синхронно (и синтетический клик в тестах его не разблокирует).
     if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.6;
+    this.master.gain.value = this.volume;
     this.master.connect(this.ctx.destination);
     this._noiseBuf = this._makeNoise(1.5);
-    this._drone();
+    // Постоянного синтезированного фона нет: ночной эмбиент и эффекты среды
+    // запускаются только своими игровыми состояниями и имеют явный stop.
     this.loadSamples();
+  }
+
+  setVolume(value) {
+    this.volume = Math.max(0, Math.min(1, Number(value) || 0));
+    if (!this.master || !this.ctx) return this.volume;
+    const now = this.ctx.currentTime;
+    this.master.gain.cancelScheduledValues(now);
+    this.master.gain.setTargetAtTime(this.volume, now, 0.025);
+    return this.volume;
   }
 
   // ---------- реальные сэмплы (assets/sfx, лицензия CC0) ----------
@@ -180,25 +191,6 @@ export class Sfx {
     node.gain.setValueAtTime(0.0001, t0);
     node.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t0 + a);
     node.gain.exponentialRampToValueAtTime(0.0001, t0 + a + dec);
-  }
-
-  // низкий гул фона
-  _drone() {
-    const c = this.ctx;
-    const g = c.createGain();
-    g.gain.value = 0.035;
-    const lp = c.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 140;
-    for (const f of [52, 55.3]) {
-      const o = c.createOscillator();
-      o.type = 'sawtooth';
-      o.frequency.value = f;
-      o.connect(lp);
-      o.start();
-    }
-    lp.connect(g);
-    g.connect(this.master);
   }
 
   // стук по дереву: бум + шумовой щелчок, count ударов с паузой
@@ -531,6 +523,74 @@ export class Sfx {
     this._env(g, t0, 0.004, 0.08, 0.09);
     o.connect(g); g.connect(this.master);
     o.start(t0); o.stop(t0 + 0.12);
+  }
+
+  // Тревожный блип стелса: два коротких нисходящих тона.
+  alert(vol = 0.5) {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    const t0 = c.currentTime;
+    for (let i = 0; i < 2; i++) {
+      const o = c.createOscillator();
+      o.type = 'triangle';
+      const at = t0 + i * 0.11;
+      o.frequency.setValueAtTime(880 - i * 180, at);
+      o.frequency.exponentialRampToValueAtTime(560 - i * 120, at + 0.09);
+      const g = c.createGain();
+      this._env(g, at, 0.004, 0.1 * vol, 0.1);
+      o.connect(g); g.connect(this.master);
+      o.start(at); o.stop(at + 0.12);
+    }
+  }
+
+  // Эхо-плиты нулевого горизонта: четыре коротких тона, чтобы порядок можно было
+  // повторить на слух. Это событийный звук, а не постоянный фон.
+  echoTone(i = 0) {
+    if (!this.ctx) return;
+    const freq = [392, 466.16, 523.25, 622.25][((i % 4) + 4) % 4];
+    const c = this.ctx;
+    const t0 = c.currentTime;
+    const o = c.createOscillator();
+    const o2 = c.createOscillator();
+    o.type = 'sine';
+    o2.type = 'triangle';
+    o.frequency.value = freq;
+    o2.frequency.value = freq * 2.01;
+    const g = c.createGain();
+    this._env(g, t0, 0.012, 0.16, 0.55);
+    const g2 = c.createGain();
+    g2.gain.value = 0.24;
+    o.connect(g); o2.connect(g2); g2.connect(g); g.connect(this.master);
+    o.start(t0); o2.start(t0);
+    o.stop(t0 + 0.62); o2.stop(t0 + 0.62);
+  }
+
+  // Низкий рык белого хомяка: короткий событийный выдох, не постоянный фон.
+  roar(vol = 0.8) {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    const t0 = c.currentTime;
+    const n = c.createBufferSource();
+    n.buffer = this._noiseBuf;
+    n.loop = true;
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(220, t0);
+    lp.frequency.exponentialRampToValueAtTime(90, t0 + 1.1);
+    const ng = c.createGain();
+    this._env(ng, t0, 0.09, 0.34 * vol, 1.15);
+    n.connect(lp); lp.connect(ng); ng.connect(this.master);
+    n.start(t0); n.stop(t0 + 1.35);
+    const o = c.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(52, t0);
+    o.frequency.exponentialRampToValueAtTime(38, t0 + 1.0);
+    const og = c.createGain();
+    this._env(og, t0, 0.06, 0.11 * vol, 1.05);
+    const olp = c.createBiquadFilter();
+    olp.type = 'lowpass'; olp.frequency.value = 160;
+    o.connect(olp); olp.connect(og); og.connect(this.master);
+    o.start(t0); o.stop(t0 + 1.2);
   }
 
   // касса: писк + стук ящика

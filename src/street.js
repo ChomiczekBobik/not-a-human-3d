@@ -1,8 +1,10 @@
 // street.js — улица Велички: ядерный снег, руины, бочка с огнём, светящаяся «БЕДРОНКА» в конце.
 import * as THREE from 'three';
-import { mat, matTex, box, plane, tex } from './mats.js';
+import { mat, matTex, box, plane, tex, pbrMat } from './mats.js';
+import { decal } from './details.js';
 import { batchStaticMeshes } from './static_batch.js';
 import { buildLyceumStreet } from './lyceum.js';
+import { createSingleDoor, createSlidingDoor } from './doors.js';
 
 export function createStreet() {
   const scene = new THREE.Scene();
@@ -27,11 +29,19 @@ export function createStreet() {
   scene.add(path);
 
   // ---------- дом Хомки позади ----------
-  const homeMat = matTex('assets/tex/wall_plaster_home.jpg', 2, 1.6, 0x6a655e, 0.95, { bump: 0.01 });
+  const homeMat = pbrMat('Concrete034', 2, 1.6, { color: 0x65615b, normalScale: 0.42, roughness: 0.98 });
   box(scene, 7, 3.4, 0.4, homeMat, 0, 1.7, 3.2);
-  // подъезд
-  box(scene, 1.4, 2.3, 0.5, mat(0x2c2824, 0.9), 0, 1.15, 2.95);
-  box(scene, 1.0, 2.0, 0.1, mat(0x241f1a, 0.8), 0, 1.0, 2.7, { cast: false });
+  // подъезд: рама и живое полотно вместо сплошной коробки. При открытии виден
+  // тёмный тамбур, а не текстура стены за дверью.
+  box(scene, 0.18, 2.3, 0.5, mat(0x2c2824, 0.9), -0.61, 1.15, 2.95);
+  box(scene, 0.18, 2.3, 0.5, mat(0x2c2824, 0.9), 0.61, 1.15, 2.95);
+  box(scene, 1.4, 0.22, 0.5, mat(0x2c2824, 0.9), 0, 2.19, 2.95);
+  box(scene, 1.02, 2.02, 0.05, mat(0x111419, 0.96), 0, 1.01, 3.0, { cast: false });
+  const homeDoor = createSingleDoor(scene, { x: 0, z: 2.68, width: 1.0, openSign: 1 });
+  decal(homeDoor.pivot, 'assets/tex/generated/scratches.png', 0.72, 1.42,
+    0.5, 1.0, -0.039, Math.PI, 0, 0.66, 0xa79c88);
+  decal(scene, 'assets/tex/generated/mold.png', 0.92, 1.46,
+    1.58, 0.82, 2.978, Math.PI, 0, 0.72, 0x65705f);
   // тёплый свет над дверью
   const porchLight = new THREE.PointLight(0xffa050, 6, 7, 2);
   porchLight.position.set(0, 2.3, 2.5);
@@ -43,18 +53,19 @@ export function createStreet() {
   // меловой крест на доме (появляется с 4-го дня — включает game)
   const cross = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7),
     new THREE.MeshStandardMaterial({ map: tex('assets/tex/chalk_cross.png'), transparent: true, roughness: 1, depthWrite: false }));
-  cross.position.set(-0.9, 1.1, 2.99);
+  cross.position.set(-0.9, 1.1, 2.978);
+  cross.rotation.y = Math.PI;
   cross.visible = false;
   scene.add(cross);
   // забитые досками соседские двери
-  const boardMat = matTex('assets/tex/wood_dark.jpg', 1, 0.4, 0x6a5540, 0.9);
+  const boardMat = pbrMat('Wood051', 1, 0.4, { color: 0x6b5945, normalScale: 0.62, roughness: 0.97 });
   box(scene, 1.3, 2.2, 0.2, mat(0x241f1a, 0.85), -2.4, 1.1, 3.2);
   for (const [ry, by] of [[0.35, 1.4], [-0.3, 0.9], [0.2, 1.9]]) {
     const b = box(scene, 1.5, 0.18, 0.06, boardMat, -2.4, by, 3.32);
     b.rotation.z = ry;
   }
   // обгоревшая машина силуэтом
-  const carMat = mat(0x1c1e20, 0.5, { metalness: 0.4 });
+  const carMat = pbrMat('Metal032', 1.4, 2.2, { color: 0x34373a, normalScale: 0.62, roughness: 0.86 });
   box(scene, 1.7, 0.5, 3.4, carMat, 2.4, 0.45, -10);
   box(scene, 1.6, 0.45, 1.7, carMat, 2.4, 0.9, -10.4);
   for (const [wx, wz] of [[1.6, -8.7], [3.2, -8.7], [1.6, -11.3], [3.2, -11.3]]) {
@@ -68,9 +79,9 @@ export function createStreet() {
 
   // ---------- руины и дома по сторонам ----------
   const ruinMats = [
-    matTex('assets/tex/wall_plaster_cold.jpg', 2, 1, 0x4e5560, 0.95, { bump: 0.01 }),
-    matTex('assets/tex/wall_plaster_cold.jpg', 2, 1, 0x3e444e, 0.95, { bump: 0.01 }),
-    matTex('assets/tex/wall_plaster_home.jpg', 2, 1, 0x565049, 0.95, { bump: 0.01 })
+    pbrMat('Concrete034', 2, 1, { color: 0x515761, normalScale: 0.5, roughness: 0.99 }),
+    pbrMat('Concrete034', 2, 1, { color: 0x40464e, normalScale: 0.56, roughness: 0.99 }),
+    pbrMat('Concrete034', 2, 1, { color: 0x5b554e, normalScale: 0.46, roughness: 0.98 })
   ];
   // Окна: рама, крестовина и подоконник нарисованы в текстуре — ноль лишних мешей
   // на фасаде. Три состояния: светлое, тёмное, забитое досками.
@@ -181,9 +192,12 @@ export function createStreet() {
 
   // ---------- бочка с огнём (середина пути) ----------
   const barrelZ = -33;
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.32, 0.95, 14), mat(0x5a3a28, 0.7, { metalness: 0.4 }));
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.32, 0.95, 14),
+    pbrMat('Metal032', 2, 1, { color: 0x74513c, normalScale: 0.7, roughness: 0.84 }));
   barrel.position.set(1.6, 0.48, barrelZ);
   barrel.castShadow = true;
+  barrel.name = 'street-barrel';
+  barrel.userData.dynamic = true;
   scene.add(barrel);
   colliders.push({ minX: 1.2, maxX: 2.0, minZ: barrelZ - 0.45, maxZ: barrelZ + 0.45 });
   const fire = new THREE.Group();
@@ -210,15 +224,22 @@ export function createStreet() {
 
   // ---------- «БЕДРОНКА» в конце ----------
   const storeZ = -68;
-  const storeWall = matTex('assets/tex/wall_store.jpg', 3, 1.4, 0xb8b4a8, 0.9);
+  const storeWall = pbrMat('Concrete034', 3, 1.4, { color: 0xa6a399, normalScale: 0.3, roughness: 0.94 });
   box(scene, 11, 4.2, 0.5, storeWall, 0, 2.1, storeZ - 0.5);
   // витрины: тёплый свет изнутри
   const glassMat = new THREE.MeshStandardMaterial({ color: 0x201a10, emissive: 0xffd890, emissiveIntensity: 1.5, roughness: 0.1, metalness: 0.2 });
   for (const gx of [-3.2, -1.4, 1.4, 3.2]) {
     plane(scene, 1.5, 1.7, glassMat, gx, 1.35, storeZ - 0.23, 0);
   }
-  // вход
-  box(scene, 1.3, 2.3, 0.3, mat(0x2a2c30, 0.5), 0, 1.15, storeZ - 0.2);
+  // Входной тамбур вынесен к reachable-границе улицы. Раздвижные створки
+  // открываются до пересечения портала, поэтому смена сцены происходит в проёме.
+  const storeDoorZ = storeZ + 1.25;
+  box(scene, 0.16, 2.5, 1.55, mat(0x2a2c30, 0.65, { metalness: 0.25 }), -0.83, 1.25, storeZ + 0.52);
+  box(scene, 0.16, 2.5, 1.55, mat(0x2a2c30, 0.65, { metalness: 0.25 }), 0.83, 1.25, storeZ + 0.52);
+  box(scene, 1.82, 0.16, 1.55, mat(0x2a2c30, 0.65, { metalness: 0.25 }), 0, 2.43, storeZ + 0.52);
+  const storeDoor = createSlidingDoor(scene, { x: 0, z: storeDoorZ, width: 1.5 });
+  decal(scene, 'assets/tex/generated/rust_drips.png', 0.82, 1.85,
+    4.92, 1.12, storeZ - 0.228, 0, 0, 0.64, 0x866553);
   // вывеска
   const sign = plane(scene, 6.5, 1.6,
     new THREE.MeshStandardMaterial({ map: tex('assets/tex/sign_biedronka.png'), emissive: 0xffffff, emissiveMap: tex('assets/tex/sign_biedronka.png'), emissiveIntensity: 0.9, roughness: 0.6 }),
@@ -345,6 +366,17 @@ export function createStreet() {
 
   return {
     scene, bounds, colliders, cross,
+    targets: {
+      barrel,
+      toHome: homeDoor.target,
+      toStore: storeDoor.target,
+      lyceum: lyc.entranceDoor.target
+    },
+    surfaceDoors: [
+      { id: 'street-home', x: 0, z: 2.68, radius: 1.8, ...homeDoor, get openAmount() { return homeDoor.openAmount; } },
+      { id: 'street-store', x: 0, z: storeDoorZ, radius: 2.1, ...storeDoor, get openAmount() { return storeDoor.openAmount; } },
+      { id: 'street-lyceum', x: 3.16, z: lyc.gateZ, radius: 2.0, ...lyc.entranceDoor, get openAmount() { return lyc.entranceDoor.openAmount; } }
+    ],
     anchors: {
       toHome: { x: 0, z: 2.2 },
       toStore: { x: 0, z: -66.0 },

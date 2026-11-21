@@ -1,7 +1,8 @@
 // basement.js — подвал Хомки: котёл, койки, полки. Сюда уходят радиоактивные — полечиться.
 import * as THREE from 'three';
-import { mat, matTex, box, plane, tex } from './mats.js';
+import { mat, box, plane, tex, pbrMat } from './mats.js';
 import { batchStaticMeshes } from './static_batch.js';
+import { addBasementDecals } from './mine_details.js';
 
 export function createBasement() {
   const scene = new THREE.Scene();
@@ -11,15 +12,17 @@ export function createBasement() {
   const bounds = { minX: -2.9, maxX: 6.5, minZ: -2.1, maxZ: 2.4 };
   const colliders = [];
 
-  const concMat = matTex('assets/tex/concrete.jpg', 2, 1.2, 0x8a8c90, 0.98);
-  const floorMat = matTex('assets/tex/concrete.jpg', 2.4, 2.0, 0x787a7e, 0.95);
-  const wood = matTex('assets/tex/wood_dark.jpg', 1, 1, 0x8a7a64, 0.9);
+  const concMat = pbrMat('Concrete034', 2, 1.2, { color: 0x8a8c90, normalScale: 0.75 });
+  const floorMat = pbrMat('Concrete034', 2.4, 2.0, { color: 0x787a7e, normalScale: 0.65 });
+  const wood = pbrMat('Wood051', 1, 1, { color: 0x8a7a64, normalScale: 0.6 });
 
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 5), floorMat);
+  // Зал и лазарет стыкуются на x=3.0 без общей полосы в 0.2 м.
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 5), floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   scene.add(floor);
-  plane(scene, 6.4, 5, mat(0x2a2a2e, 0.95), 0, 2.4, 0.1, 0, Math.PI / 2); // потолок зала — плоскость вниз
+  floor.position.x = -0.1;
+  plane(scene, 6.2, 5, mat(0x2a2a2e, 0.95), -0.1, 2.4, 0.1, 0, Math.PI / 2); // потолок зала — плоскость вниз
   box(scene, 0.2, 2.5, 5, concMat, -3.0, 1.25, 0.1);
   // правая стена зала с проёмом в лазарет (z -0.6..0.4)
   box(scene, 0.2, 2.5, 1.5, concMat, 3.0, 1.25, -1.35);
@@ -27,10 +30,10 @@ export function createBasement() {
   box(scene, 0.2, 0.6, 1.0, concMat, 3.0, 2.2, -0.1);
   colliders.push({ minX: 2.9, maxX: 3.1, minZ: -2.1, maxZ: -0.6 });
   colliders.push({ minX: 2.9, maxX: 3.1, minZ: 0.4, maxZ: 2.4 });
-  box(scene, 6.4, 2.5, 0.2, concMat, 0, 1.25, -2.3);
+  box(scene, 6.2, 2.5, 0.2, concMat, -0.1, 1.25, -2.3);
   // задняя стена с проёмом-лестницей
   box(scene, 2.4, 2.5, 0.2, concMat, -2.0, 1.25, 2.55);
-  box(scene, 2.4, 2.5, 0.2, concMat, 2.0, 1.25, 2.55);
+  box(scene, 2.2, 2.5, 0.2, concMat, 1.9, 1.25, 2.55);
   box(scene, 1.6, 0.5, 0.2, concMat, 0, 2.25, 2.55);
   // ступени вверх (декор, игрок туда не ходит)
   for (let i = 0; i < 3; i++) {
@@ -38,7 +41,8 @@ export function createBasement() {
   }
 
   // ---------- котёл ----------
-  box(scene, 1.1, 1.4, 0.8, mat(0x3a3230, 0.6, { metalness: 0.5 }), -2.3, 0.7, -1.8);
+  const boilerMetal = pbrMat('Metal032', 1, 1, { color: 0x655a52, roughness: 0.78, normalScale: 0.55 });
+  box(scene, 1.1, 1.4, 0.8, boilerMetal, -2.3, 0.7, -1.8);
   colliders.push({ minX: -2.9, maxX: -1.75, minZ: -2.1, maxZ: -1.35 });
   // дверца с углями
   const coals = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.35),
@@ -49,13 +53,14 @@ export function createBasement() {
   boilerLight.position.set(-2.3, 0.9, -1.3);
   scene.add(boilerLight);
   // труба
-  const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.6, 10), mat(0x2e2a26, 0.5, { metalness: 0.6 }));
+  const pipeMetal = pbrMat('Metal032', 1, 3, { color: 0x69615a, roughness: 0.70, normalScale: 0.5 });
+  const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.6, 10), pipeMetal);
   pipe.position.set(-2.3, 2.0, -1.8);
   scene.add(pipe);
 
   // ---------- койки (правая стена) ----------
   const cotSpots = [];
-  const cotMat = mat(0x4a4a52, 0.5, { metalness: 0.4 });
+  const cotMat = pbrMat('Metal032', 1, 2, { color: 0x777781, roughness: 0.72, normalScale: 0.45 });
   const mattressMat = mat(0x6a6258, 0.95);
   const blanketColors = [0x5a3a3a, 0x3a4a5a, 0x4a5a3a];
   for (let i = 0; i < 3; i++) {
@@ -132,7 +137,7 @@ export function createBasement() {
     4.6, 1.6, -2.18, 0);
   const puddle = new THREE.Mesh(new THREE.CircleGeometry(0.5, 16), mat(0x2a2c30, 0.25));
   puddle.rotation.x = -Math.PI / 2;
-  puddle.position.set(4.2, 0.004, 1.0);
+  puddle.position.set(4.2, 0.012, 1.0);
   scene.add(puddle);
 
   // ---------- полки с хламом (левая стена) ----------
@@ -154,7 +159,8 @@ export function createBasement() {
   }
   colliders.push({ minX: -3.0, maxX: -2.5, minZ: -0.5, maxZ: 1.7 });
   // велосипедное колесо
-  const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.02, 8, 24), mat(0x3a3a40, 0.4, { metalness: 0.6 }));
+  const wheelMetal = pbrMat('Metal032', 1, 1, { color: 0x707078, roughness: 0.62, normalScale: 0.45 });
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.02, 8, 24), wheelMetal);
   wheel.position.set(-2.55, 1.5, 1.9);
   wheel.rotation.y = Math.PI / 2;
   scene.add(wheel);
@@ -176,7 +182,7 @@ export function createBasement() {
   // мокрое пятно
   const stain = new THREE.Mesh(new THREE.CircleGeometry(0.7, 20), mat(0x24262a, 0.3));
   stain.rotation.x = -Math.PI / 2;
-  stain.position.set(-0.5, 0.004, 0.8);
+  stain.position.set(-0.5, 0.012, 0.8);
   scene.add(stain);
   // плакат «сдавайте металлолом» и кровавый след у койки
   plane(scene, 1.1, 0.7,
@@ -186,17 +192,49 @@ export function createBasement() {
     new THREE.MeshStandardMaterial({ map: tex('assets/tex/blood_decal.png'), transparent: true, roughness: 0.95, depthWrite: false }));
   bloodP.rotation.x = -Math.PI / 2;
   bloodP.rotation.z = 1.2;
-  bloodP.position.set(1.8, 0.006, 0.2);
+  bloodP.position.set(1.8, 0.018, 0.2);
   scene.add(bloodP);
   // дозиметр на полке
   box(scene, 0.14, 0.1, 0.06, mat(0x3a4038, 0.5), -2.72, 1.46, 0.9, { cast: false });
 
   // ---------- обновление ----------
+  // Шахтный люк: до третьей ночи закрыт на клин.
+  const mineHatch = new THREE.Group();
+  mineHatch.name = 'basement-mine-hatch';
+  mineHatch.userData.dynamic = true;
+  mineHatch.position.set(0, 0.025, -1.05);
+  scene.add(mineHatch);
+  const hatchSteel = pbrMat('Metal032', 1, 1, { color: 0x69716c, roughness: 0.62, normalScale: 0.5 });
+  const hatchRust = pbrMat('Metal032', 1, 1, { color: 0x8a6250, roughness: 0.82, normalScale: 0.65 });
+  box(mineHatch, 1.38, 0.055, 0.10, hatchSteel, 0, 0.015, -0.64);
+  box(mineHatch, 1.38, 0.055, 0.10, hatchSteel, 0, 0.015, 0.64);
+  box(mineHatch, 0.10, 0.055, 1.18, hatchSteel, -0.64, 0.015, 0);
+  box(mineHatch, 0.10, 0.055, 1.18, hatchSteel, 0.64, 0.015, 0);
+  const hatchPivot = new THREE.Group();
+  hatchPivot.position.set(0, 0.055, -0.56);
+  mineHatch.add(hatchPivot);
+  const hatchLid = box(hatchPivot, 1.14, 0.065, 1.12, hatchRust, 0, 0, 0.56);
+  hatchLid.name = 'mine-hatch-lid';
+  const hatchWheel = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.022, 8, 22), hatchSteel);
+  hatchWheel.rotation.x = -Math.PI / 2;
+  hatchWheel.position.set(0, 0.075, 0.58);
+  hatchPivot.add(hatchWheel);
+  for (const a of [0, Math.PI / 2]) box(hatchPivot, 0.36, 0.018, 0.018, hatchSteel, 0, 0.075, 0.58, { ry: a });
+  const hatchTag = plane(mineHatch, 0.48, 0.20,
+    new THREE.MeshStandardMaterial({ color: 0xb4a883, roughness: 0.95 }),
+    0.34, 0.095, 0.48, 0, -Math.PI / 2);
+  hatchTag.rotation.z = -0.12;
+  let hatchOpen = false;
+
   let t = 0;
   // ---------- батчинг статики ----------
+  addBasementDecals(scene);
+
   batchStaticMeshes(scene);
 
   function update(dt) {
+    const hatchTarget = hatchOpen ? -Math.PI * 0.52 : 0;
+    hatchPivot.rotation.x += (hatchTarget - hatchPivot.rotation.x) * Math.min(1, dt * 3.2);
     t += dt;
     coals.material.emissiveIntensity = 2.0 + Math.sin(t * 7.7) * 0.4 + Math.sin(t * 17.3) * 0.2;
     boilerLight.intensity = 8.5 + Math.sin(t * 8.3) * 1.4 + Math.sin(t * 23.1) * 0.5;
@@ -208,8 +246,11 @@ export function createBasement() {
 
   return {
     scene, bounds, colliders, cotSpots,
+    targets: { mineHatch },
+    setMineHatch(open) { hatchOpen = !!open; },
     anchors: {
       exit: { x: 0, z: 1.9 },
+      mine: { x: 0, z: -0.05, r: 1.10 },
       patients: cotSpots
     },
     update

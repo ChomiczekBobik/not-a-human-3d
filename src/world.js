@@ -3,7 +3,7 @@
 // Возвращает сцену, коллайдеры, дверь с петлёй, глазок, якоря для интерактивов.
 
 import * as THREE from 'three';
-import { tex, box, mat, plane } from './mats.js';
+import { tex, box, mat, plane, pbrMat } from './mats.js';
 
 export function createWorld() {
   const scene = new THREE.Scene();
@@ -26,10 +26,10 @@ export function createWorld() {
   };
 
   // ---------- материалы ----------
-  const wallMat = mat(0x8f8a82, 0.95, { map: tex('assets/tex/wall_plaster_home.jpg', 2.4, 1.2), bumpMap: tex('assets/tex/wall_plaster_home.jpg', 2.4, 1.2, false), bumpScale: 0.008 });
+  const wallMat = pbrMat('Concrete034', 2.4, 1.2, { color: 0x77736c, normalScale: 0.34, roughness: 0.98 });
   const bedroomMat = mat(0xb0a090, 0.95, { map: tex('assets/tex/wallpaper.jpg', 2, 1), bumpMap: tex('assets/tex/wallpaper.jpg', 2, 1, false), bumpScale: 0.006 });
   const bathMat = mat(0xc8c4b8, 0.6, { map: tex('assets/tex/tiles_kitchen.jpg', 2, 2), bumpMap: tex('assets/tex/tiles_kitchen.jpg', 2, 2, false), bumpScale: 0.01 });
-  const floorMat = mat(0xb0a08c, 0.85, { map: tex('assets/tex/floor_wood.jpg', 2.5, 3.0), bumpMap: tex('assets/tex/floor_wood.jpg', 2.5, 3.0, false), bumpScale: 0.014 });
+  const floorMat = pbrMat('Wood051', 2.5, 3.0, { color: 0x928573, normalScale: 0.48, roughness: 0.94 });
   const ceilMat = mat(0x1c1d22);
   // Подъезд виден только через глазок (125° угол, за стеклом) — bump там не читается,
   // а стоил второй выборки текстуры на каждый пиксель: оставлена только карта цвета.
@@ -148,7 +148,8 @@ export function createWorld() {
   const doorPivot = new THREE.Group();
   doorPivot.position.set(-doorW / 2, 0, -2.5);
   scene.add(doorPivot);
-  const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(doorW - 0.02, 2.02, 0.06), mat(0x4a3626, 0.7));
+  const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(doorW - 0.02, 2.02, 0.06),
+    pbrMat('Wood051', 1.2, 2.4, { color: 0x66503c, normalScale: 0.5, roughness: 0.92 }));
   doorMesh.position.set(doorW / 2, 1.01, 0);
   doorMesh.castShadow = true;
   doorMesh.receiveShadow = true;
@@ -208,7 +209,7 @@ export function createWorld() {
     new THREE.MeshStandardMaterial({ map: tex('assets/tex/newspaper.jpg'), roughness: 0.95 }));
   paper.rotation.x = -Math.PI / 2;
   paper.rotation.z = 0.3;
-  paper.position.set(-1.3, 0.455, -0.42);
+  paper.position.set(-1.3, 0.458, -0.42); // столешница заканчивается на y=0.45
   scene.add(paper);
   colliders.push({ minX: -1.95, maxX: -1.05, minZ: -0.7, maxZ: -0.2 });
 
@@ -219,7 +220,9 @@ export function createWorld() {
     new THREE.PlaneGeometry(1.0, 0.53),
     new THREE.MeshStandardMaterial({ color: 0x05070a, roughness: 0.2, metalness: 0.4 })
   );
-  tvScreen.position.set(tvX, 1.35, ROOM.maxZ - 0.155);
+  // Передняя грань корпуса z=2.445; экран на 7 мм ближе к комнате,
+  // чтобы две плоскости не совпадали и не мерцали при движении камеры.
+  tvScreen.position.set(tvX, 1.35, ROOM.maxZ - 0.162);
   tvScreen.rotation.y = Math.PI;
   scene.add(tvScreen);
   slab(1.3, 0.06, 0.45, mat(0x241c14, 0.7), tvX, 0.55, ROOM.maxZ - 0.25, true);
@@ -340,20 +343,30 @@ export function createWorld() {
   // записка на стене (правый простенок прихожей)
   const note = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.17),
     new THREE.MeshStandardMaterial({ map: tex('assets/tex/note_paper.png'), roughness: 0.95 }));
-  note.position.set(1.85, 1.5, 2.72);
-  note.rotation.y = Math.PI;
+  note.name = 'home-note';
+  // Прихожая находится со стороны +z. Лицо PlaneGeometry должно смотреть туда же:
+  // поворот на Math.PI раньше показывал игроку только отсечённую backface.
+  note.position.set(1.85, 1.5, 2.712); // 12 мм от поверхности стены z=2.70
+  note.rotation.y = 0;
   note.rotation.z = -0.05;
+  note.castShadow = false;
+  note.receiveShadow = true;
+  note.userData.dynamic = true; // сохранить Mesh для точного интерактивного контура
   scene.add(note);
 
   // ---------- СПАЛЬНЯ ----------
   // кровать (левая стена, изголовьем к задней)
   const bedWood = mat(0x4a3626, 0.75);
   const blanket = mat(0x4a5a6a, 1);
-  slab(1.1, 0.28, 2.0, bedWood, -1.45, 0.2, 5.45, true);
-  slab(1.05, 0.14, 1.95, mat(0x8a8272, 1), -1.45, 0.41, 5.45, true);
-  slab(1.06, 0.08, 1.35, blanket, -1.45, 0.5, 5.15, true);
-  slab(1.1, 0.6, 0.08, bedWood, -1.45, 0.55, 6.45, true);  // изголовье
-  slab(0.5, 0.1, 0.32, mat(0xc8c0ac, 1), -1.45, 0.53, 6.15, true); // подушка
+  const bedTarget = new THREE.Group();
+  bedTarget.name = 'home-bed';
+  bedTarget.userData.dynamic = true;
+  scene.add(bedTarget);
+  box(bedTarget, 1.1, 0.28, 2.0, bedWood, -1.45, 0.2, 5.45, { cast: true });
+  box(bedTarget, 1.05, 0.14, 1.95, mat(0x8a8272, 1), -1.45, 0.41, 5.45, { cast: true });
+  box(bedTarget, 1.06, 0.08, 1.35, blanket, -1.45, 0.5, 5.15, { cast: true });
+  box(bedTarget, 1.1, 0.6, 0.08, bedWood, -1.45, 0.55, 6.45, { cast: true });  // изголовье
+  box(bedTarget, 0.5, 0.1, 0.32, mat(0xc8c0ac, 1), -1.45, 0.53, 6.15, { cast: true }); // подушка
   colliders.push({ minX: -2.0, maxX: -0.9, minZ: 4.45, maxZ: 6.5 });
   // тумбочка с книгами
   slab(0.4, 0.45, 0.35, bedWood, -0.65, 0.225, 6.3, true);
@@ -375,11 +388,13 @@ export function createWorld() {
   colliders.push({ minX: -0.25, maxX: 0.95, minZ: 5.95, maxZ: 6.55 });
   // радиоприёмник «ВЭФ»
   const radio = new THREE.Group();
+  radio.name = 'home-radio';
+  radio.userData.dynamic = true;
   const rbody = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.24, 0.16), mat(0x5a4a36, 0.6));
   radio.add(rbody);
   const rscale = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.07),
     new THREE.MeshStandardMaterial({ color: 0x2a2010, emissive: 0xd8a040, emissiveIntensity: 0.9, roughness: 0.4 }));
-  rscale.position.set(-0.04, 0.03, -0.081);
+  rscale.position.set(-0.04, 0.03, -0.084); // 4 мм от корпуса вместо 1 мм
   rscale.rotation.y = Math.PI;
   radio.add(rscale);
   for (const kx of [0.12, 0.17]) {
@@ -464,6 +479,8 @@ export function createWorld() {
   const mirror = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 0.6),
     new THREE.MeshStandardMaterial({ color: 0x6a7a86, roughness: 0.08, metalness: 0.9, emissive: 0x1a2430, emissiveIntensity: 0.4 }));
   mirror.position.set(2.75, 1.45, 2.61);
+  mirror.name = 'home-mirror';
+  mirror.userData.dynamic = true;
   scene.add(mirror);
   // полка с банками над раковиной
   slab(0.5, 0.03, 0.16, mat(0x8a8478, 0.7), 2.75, 1.85, 2.7, false);
@@ -539,6 +556,7 @@ export function createWorld() {
     scene, colliders, room: ROOM, flat: FLAT,
     door, peepholePos, peepholeViewPos, visitorAnchor, corridorMid: new THREE.Vector3(0, 0, -3.5),
     corridor: corridorGroup,
+    targets: { note, radio, mirror, bed: bedTarget, door: doorPivot },
     radioPos: { x: 0.2, z: 5.95 },
     bedPos: { x: -0.6, z: 4.8 },
     mirrorPos: { x: 2.75, z: 3.1 },

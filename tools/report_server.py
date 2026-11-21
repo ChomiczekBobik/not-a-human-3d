@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """report_server.py — http.server на 8080 + приём POST /report (JSON -> /tmp/report.json)."""
 import json
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 REPORT_PATH = "/tmp/report.json"
 
@@ -29,4 +29,4 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    HTTPServer(("127.0.0.1", 8080), Handler).serve_forever()
+    ThreadingHTTPServer(("127.0.0.1", 8080), Handler).serve_forever()

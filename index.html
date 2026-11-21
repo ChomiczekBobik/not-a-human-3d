@@ -2,9 +2,11 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#111719" />
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
 <title>НЕТ, Я НЕ ВЕЛИЧАНИН — 3D (пародия)</title>
-<link rel="stylesheet" href="css/style.css?v=3" />
+<link rel="stylesheet" href="css/style.css?v=9" />
 <script>
 // диагностика для локальных автотестов; на GitHub Pages /report не существует,
 // поэтому отправка включается только с localhost/127.0.0.1.
@@ -34,61 +36,130 @@ window.addEventListener('unhandledrejection', function (e) {
 <body>
 <div id="app">
   <canvas id="scene"></canvas>
-  <div id="vignette"></div>
-  <div id="flash"></div>
-  <div id="fade"></div>
-  <div id="crosshair" class="hidden">·</div>
-  <div id="peephole-mask" class="hidden"><div id="peephole-glass"></div></div>
+  <div id="vignette" aria-hidden="true"></div>
+  <div id="flash" aria-hidden="true"></div>
+  <div id="fade" aria-hidden="true"></div>
+  <div id="crosshair" class="hidden" aria-hidden="true">·</div>
+  <div id="peephole-mask" class="hidden" aria-hidden="true"><div id="peephole-glass"></div></div>
 
-  <div id="hud" class="hidden">
-    <div id="night-label">ДЕНЬ 1</div>
-    <div id="clock-label">09:00</div>
+  <div id="hud" class="hidden" aria-label="Текущая локация">
+    <div class="hud-location" aria-hidden="true">ВЕЛИЧКА <span>49°59′N / 20°03′E</span></div>
   </div>
-  <div id="meter" class="hidden">
+  <div id="meter" class="hidden" role="status" aria-label="Запасы и состояние">
     <b id="hearts" class="mi" title="Человечность">♥♥♥</b>
     <span class="mi" title="Запасы">▣<b id="supplies">4</b></span>
-    <span class="mi" title="Злотые">$<b id="money">30</b></span>
     <span class="mi" title="Лекарства">✚<b id="meds">0</b></span>
     <span class="mi" title="Чай">☕<b id="tea">0</b></span>
   </div>
+  <div id="cart" class="hidden" aria-live="polite">
+    <div id="cart-heading"><span>КАРМАНЫ</span><b id="cart-count">0/3</b></div>
+    <div id="cart-status">ПУСТО</div>
+    <div id="stealth">
+      <div id="stealth-head"><span><i id="stealth-eye" aria-hidden="true">◉</i> ВНИМАНИЕ</span><b id="stealth-state">НЕ СМОТРИТ</b></div>
+      <div id="stealth-bar" role="progressbar" aria-label="Внимание Людмилы" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="stealth-fill"></div></div>
+      <div id="stealth-note">Держись вне жёлтого сектора · <kbd>C</kbd> — присесть тише</div>
+    </div>
+    <div id="cart-help">
+      <span class="desktop-only"><kbd>E</kbd> — взять · <kbd>Q</kbd> — вернуть · <kbd>C</kbd> — присесть</span>
+      <span class="touch-only">ДЕЙСТВИЕ — взять · ВЕРНУТЬ — обратно · ПРИСЕСТЬ — тише</span>
+    </div>
+  </div>
   <div id="warmth" class="hidden" title="Тепло">
-    <span>❄</span>
-    <div id="warmth-bar"><div id="warmth-fill"></div></div>
+    <span aria-hidden="true">❄</span>
+    <div id="warmth-bar" aria-hidden="true"><div id="warmth-fill"></div></div>
   </div>
 
-  <button id="tasks-btn" class="hidden">TAB<span>дела</span></button>
-  <div id="tasks-panel" class="hidden">
+  <div id="air" class="hidden" title="Запас воздуха в шахте">
+    <span>ВОЗДУХ</span><b id="air-value">100%</b>
+    <div id="air-bar" aria-hidden="true"><div id="air-fill"></div></div>
+  </div>
+
+  <button id="inventory-btn" class="hidden" type="button" aria-controls="inventory-panel" aria-keyshortcuts="I">I<span>инвентарь</span></button>
+  <button id="tasks-btn" class="hidden" type="button" aria-controls="tasks-panel" aria-keyshortcuts="Tab">TAB<span>дела</span></button>
+  <div id="tasks-panel" class="hidden" role="region" aria-label="Список дел, день и время" tabindex="0">
     <div id="tasks-title">ДЕЛА</div>
+    <div id="tasks-time" role="status" aria-label="Текущие день и время">
+      <span id="tasks-day">ДЕНЬ 1</span><b id="tasks-clock">09:00</b>
+    </div>
     <div id="tasks-list"></div>
   </div>
 
-  <div id="prompt" class="hidden"></div>
-  <div id="subtitle" class="hidden"></div>
+  <div id="inventory-panel" class="hidden" role="dialog" aria-modal="true" aria-label="Инвентарь Хомки" aria-describedby="inventory-sub" tabindex="0">
+    <div id="inventory-head"><span>РЮКЗАК ХОМКИ</span></div>
+    <div id="inventory-sub">Предметы, найденные вещи и записи. Нажми на предмет, чтобы осмотреть или использовать.</div>
+    <div id="inventory-grid"></div>
+    <div id="inventory-detail">I / Esc — закрыть инвентарь</div>
+    <button id="inventory-close" type="button" aria-keyshortcuts="I Escape">ЗАКРЫТЬ<span class="desktop-only"> · I</span></button>
+  </div>
 
-  <div id="dialogue" class="hidden">
+  <div id="prompt" class="hidden" role="status" aria-live="polite"></div>
+  <div id="subtitle" class="hidden" aria-live="polite"></div>
+  <div id="chase-vignette" class="hidden" aria-hidden="true"></div>
+
+  <div id="touch-controls" class="hidden" aria-label="Сенсорное управление">
+    <div id="touch-move" role="group" aria-label="Джойстик движения">
+      <div id="touch-move-ring" aria-hidden="true"></div>
+      <div id="touch-move-knob" aria-hidden="true"></div>
+      <span>ДВИЖЕНИЕ</span>
+    </div>
+    <div id="touch-actions" role="group" aria-label="Игровые действия">
+      <button id="touch-return" class="touch-button hidden" type="button" aria-label="Вернуть товар">↩<span>ВЕРНУТЬ</span></button>
+      <button id="touch-crouch" class="touch-button" type="button" aria-label="Присесть или встать" aria-pressed="false">ПРИСЕСТЬ</button>
+      <button id="touch-run" class="touch-button" type="button" aria-label="Включить или выключить бег" aria-pressed="false">БЕГ</button>
+      <button id="touch-action" class="touch-button" type="button" aria-label="Действие или взять предмет">✦<span>ДЕЙСТВИЕ</span></button>
+    </div>
+    <button id="touch-peephole-exit" class="hidden" type="button">ВЫЙТИ ИЗ ГЛАЗКА</button>
+  </div>
+
+  <div id="dialogue" class="hidden" role="dialog" aria-label="Диалог">
     <div id="npc-name"></div>
     <div id="npc-line"></div>
     <div id="choices"></div>
   </div>
 
-  <div id="bigtext" class="hidden"></div>
+  <div id="bigtext" class="hidden" aria-live="assertive"></div>
 
   <div id="title" class="screen">
-    <h1>НЕТ, Я НЕ<br/>ВЕЛИЧАНИН</h1>
-    <p class="sub">Хомка. Величка. Две недели после.</p>
-    <button id="start-btn">ВЫЙТИ НА СМЕНУ</button>
-    <p class="hint">
-      WASD — ходить · мышь — смотреть · E — действие · E/Esc у двери — выйти из глазка · выбор диалога — мышью<br/>
-      Днём — в «Бедронку» за запасами. Масло по скидке. Кассирша Людмила.<br/>
-      Ночью стучатся. Впускай — а разбирайся потом, днём, с ружьём под рукой.<br/>
-      Величанина оставь. Краковянина — того. Радиоактивного — в подвал, полечится.
-    </p>
+    <div id="title-main">
+      <img id="title-logo" src="assets/favicon.svg" width="112" height="112" alt="" />
+      <h1>НЕТ, Я НЕ<br/>ВЕЛИЧАНИН</h1>
+      <nav id="title-actions" aria-label="Главное меню">
+        <button id="start-btn" type="button">ИГРАТЬ</button>
+        <button id="settings-btn" class="title-secondary" type="button" aria-controls="settings-panel" aria-expanded="false">НАСТРОЙКИ</button>
+      </nav>
+    </div>
+    <section id="settings-panel" class="hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <h2 id="settings-title">НАСТРОЙКИ</h2>
+      <div class="setting-row">
+        <label for="setting-quality">КАЧЕСТВО</label>
+        <select id="setting-quality">
+          <option value="auto">АВТОМАТИЧЕСКИ</option>
+          <option value="0">МАКСИМАЛЬНОЕ</option>
+          <option value="2">СРЕДНЕЕ</option>
+          <option value="4">НИЗКОЕ</option>
+          <option value="5">МИНИМАЛЬНОЕ</option>
+        </select>
+        <small>Разрешение, тени и свечение. Авто подстраивается под частоту кадров.</small>
+      </div>
+      <div class="setting-row">
+        <label for="setting-volume">ГРОМКОСТЬ <output id="setting-volume-value" for="setting-volume">60%</output></label>
+        <input id="setting-volume" type="range" min="0" max="100" step="1" value="60" />
+      </div>
+      <div class="setting-row">
+        <label for="setting-sensitivity">ЧУВСТВИТЕЛЬНОСТЬ ОБЗОРА <output id="setting-sensitivity-value" for="setting-sensitivity">100%</output></label>
+        <input id="setting-sensitivity" type="range" min="35" max="200" step="5" value="100" />
+        <small>Действует на мышь и свайп.</small>
+      </div>
+      <small class="debug-hint">F2 в игре — панель разработчика: переходы по этапам, ночи, шахта и план.</small>
+      <button id="settings-back" class="title-secondary" type="button">НАЗАД</button>
+    </section>
   </div>
 
   <div id="gameover" class="screen hidden">
+    <div class="screen-kicker" aria-hidden="true"><span>АРХИВ / ЗАПИСЬ ПРЕРВАНА</span><b>СМЕНА ЗАКРЫТА</b></div>
     <h1 id="go-title">КОНЕЦ</h1>
     <p id="go-text"></p>
-    <button id="go-btn">ЕЩЁ РАЗ</button>
+    <button id="go-btn" type="button">ЕЩЁ РАЗ</button>
   </div>
 </div>
 <script type="module" src="src/main.js"></script>

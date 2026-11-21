@@ -5,6 +5,7 @@ const loader = new THREE.TextureLoader();
 const cache = new Map();
 const matCache = new Map();   // переиспользование материалов: меньше программ/батчей
 const matTexCache = new Map();
+const pbrCache = new Map();
 const planeGeoCache = new Map(); // общие геометрии плоскостей
 
 /** Загрузить текстуру с повтором. srgb=false для карт шероховатости/нормалей. */
@@ -49,6 +50,61 @@ export function matTex(path, rx, ry, color = 0xffffff, rough = 0.92, extra = {})
   const m = new THREE.MeshStandardMaterial(params);
   matTexCache.set(key, m);
   return m;
+}
+
+/** ambientCG PBR-материал из локальных 1K JPG-карт.
+ * options — overrides для MeshStandardMaterial; числовой normalScale задаёт обе оси. */
+export function pbrMat(asset, rx, ry, options = {}) {
+  // Одинаковые PBR-наборы реально делят материал: меньше программ, памяти и
+  // исходных мешей для батчера. Texture/Vector2 сериализуем по смыслу, а не в JSON.
+  const optionKey = Object.keys(options).sort().map((key) => {
+    const value = options[key];
+    if (value && value.isTexture) return `${key}:texture:${value.uuid}`;
+    if (value && value.isVector2) return `${key}:vector:${value.x},${value.y}`;
+    if (value && value.isColor) return `${key}:color:${value.getHex()}`;
+    if (value && typeof value === 'object') return `${key}:${JSON.stringify(value)}`;
+    return `${key}:${String(value)}`;
+  }).join('|');
+  const cacheKey = `${asset}|${rx}|${ry}|${optionKey}`;
+  const cached = pbrCache.get(cacheKey);
+  if (cached) return cached;
+
+  const base = `assets/tex/pbr/${asset}_1K-JPG`;
+  const isMetal = asset === 'Metal032';
+  const { normalScale = 0.8, ...overrides } = options;
+  const params = {
+    color: 0xffffff,
+    map: tex(`${base}_Color.jpg`, rx, ry, true),
+    normalMap: tex(`${base}_NormalGL.jpg`, rx, ry, false),
+    normalScale: typeof normalScale === 'number'
+      ? new THREE.Vector2(normalScale, normalScale)
+      : normalScale,
+    roughness: 1.0,
+    roughnessMap: tex(`${base}_Roughness.jpg`, rx, ry, false),
+    metalness: isMetal ? 1.0 : 0.0,
+    ...overrides,
+  };
+
+  // У Metal032 карта обязательна даже при overrides; остальные заданные материалы неметаллы.
+  if (isMetal) {
+    params.metalnessMap = tex(`${base}_Metalness.jpg`, rx, ry, false);
+  } else if (asset === 'Wood051' || asset === 'Concrete034') {
+    params.metalness = 0.0;
+  }
+  const material = new THREE.MeshStandardMaterial(params);
+  pbrCache.set(cacheKey, material);
+  return material;
+}
+
+/** Диагностика фактического переиспользования ресурсов в browser QA. */
+export function materialStats() {
+  return {
+    textures: cache.size,
+    plainMaterials: matCache.size,
+    texturedMaterials: matTexCache.size,
+    pbrMaterials: pbrCache.size,
+    planeGeometries: planeGeoCache.size
+  };
 }
 
 const boxGeo = new THREE.BoxGeometry(1, 1, 1);
